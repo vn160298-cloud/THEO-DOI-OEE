@@ -150,6 +150,19 @@ textarea{resize:vertical}
 .kv i{color:var(--muted); font-style:normal}
 .empty{text-align:center; color:var(--muted); font-size:13px; padding:18px 6px}
 
+/* nhóm danh mục theo máy (tab Dữ liệu nền) */
+.m-group{
+  display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+  background:var(--blue-soft); border:1px solid #cfe0f5; border-radius:8px;
+  padding:7px 11px; margin:14px 0 8px; position:sticky; top:52px; z-index:5;
+}
+.m-group b{font-size:12.5px; color:var(--navy); text-transform:uppercase; letter-spacing:.3px}
+.m-group span{font-size:11px; color:#4d6b8a; font-weight:600; white-space:nowrap}
+.m-group:first-child{margin-top:0}
+.master-count{font-size:12px; color:var(--muted); margin-bottom:10px}
+.master-count b{color:var(--navy)}
+.master-count a{color:var(--blue); font-weight:600}
+.item-actions .p-code{align-self:center}
 .badge{display:inline-block; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:20px; background:#eef2f7; color:var(--navy)}
 .badge-ok{background:var(--ok-bg); color:var(--ok)}
 .badge-warn{background:var(--warn-bg); color:var(--warn)}
@@ -195,7 +208,7 @@ table.tbl td.n{text-align:right; font-variant-numeric:tabular-nums}
 .p-item.sel{background:var(--blue-soft)}
 .p-item .p-l{font-weight:600; font-size:14px}
 .p-item .p-s{font-size:12px; color:var(--muted)}
-.p-item .p-code{font-size:11px; font-weight:700; color:var(--blue); background:var(--blue-soft); padding:2px 7px; border-radius:6px; flex:0 0 auto}
+.p-code{font-size:11px; font-weight:700; color:var(--blue); background:var(--blue-soft); padding:2px 7px; border-radius:6px; flex:0 0 auto; white-space:nowrap}
 .p-note{font-size:12px; color:#6b5a1f; background:#fffbea; border:1px solid #f0e0a8; border-radius:8px; padding:8px 10px; margin-bottom:6px}
 .p-group{font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; padding:10px 10px 4px; background:#f7f9fc; position:sticky; top:0}
 .modal-body{overflow-y:auto; padding:2px}
