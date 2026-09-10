@@ -3,7 +3,7 @@
    Khi cập nhật app: đổi CACHE_VERSION (v1 -> v2 ...) rồi deploy lại.
    Chỉ cache phần giao diện; dữ liệu luôn lấy trực tiếp từ Google Sheets.
    ===================================================================== */
-const CACHE_VERSION = 'oee-v1';
+const CACHE_VERSION = 'oee-v2';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './config.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
