@@ -16,7 +16,7 @@ const LEVEL_NAME = { 1:'Cấp 1 — Nhập liệu', 2:'Cấp 2 — Nhập liệu
 const state = {
   apiUrl: '', token:'', user:null, master:null,
   view:'entry', draft:null, installEvent:null,
-  today:{ general:[], downtime:[] }, report:null, masterTab:'machines'
+  today:{ general:[], downtime:[] }, report:null, masterTab:'machines', masterMachine:''
 };
 
 /* ---------------------------------------------------------------- tiện ích */
@@ -767,19 +767,23 @@ const MASTER_DEFS = {
     label:r=>r.name||r.code, sub:r=>`${r.code}${r.rate?' · '+fmtNum(r.rate)+' SP/giờ':' · chưa có công suất'}` },
   errors: { title:'Mã lỗi', sheet:'MaLoi',
     fields:[ {k:'machine',l:'Máy áp dụng',type:'machine'}, {k:'code',l:'Mã lỗi',req:1}, {k:'name',l:'Tên lỗi / lý do dừng',req:1} ],
-    label:r=>r.name, sub:r=>`${r.code} · ${r.machine==='*'||!r.machine?'tất cả máy':r.machine}`, groupBy:'machine' },
+    label:r=>r.name, sub:r=>(!r.machine||r.machine==='*')?'Dùng cho tất cả máy':'', code:r=>r.code,
+    machineFilter:true, groupBy:'machine', sortBy:'code' },
   shifts: { title:'Ca làm việc', sheet:'Ca',
     fields:[ {k:'name',l:'Tên ca',req:1}, {k:'start',l:'Giờ bắt đầu',type:'time'}, {k:'end',l:'Giờ kết thúc',type:'time'} ],
     label:r=>r.name, sub:r=>(r.start&&r.end)?`${r.start} – ${r.end}`:'' },
   staff: { title:'Nhân sự', sheet:'NhanSu',
     fields:[ {k:'role',l:'Vai trò',type:'role',req:1}, {k:'name',l:'Họ tên',req:1},
              {k:'shift',l:'Ca',type:'shift'}, {k:'machine',l:'Máy',type:'machine'} ],
-    label:r=>r.name, sub:r=>[r.role, r.shift&&r.shift!=='*'?r.shift:'mọi ca', r.machine&&r.machine!=='*'?r.machine:'mọi máy'].join(' · '), groupBy:'role' },
+    label:r=>r.name, sub:r=>[r.role, r.shift&&r.shift!=='*'?r.shift:'mọi ca', r.machine&&r.machine!=='*'?r.machine:'mọi máy'].join(' · '),
+    machineFilter:true, groupBy:'role' },
   products: { title:'Sản phẩm & giới hạn', sheet:'SanPham',
     fields:[ {k:'code',l:'Mã sản phẩm',req:1}, {k:'name',l:'Tên sản phẩm'}, {k:'machine',l:'Máy',type:'machine'},
              {k:'min',l:'Sản lượng tối thiểu',type:'num'}, {k:'max',l:'Sản lượng tối đa',type:'num'},
              {k:'rate',l:'Công suất (SP/giờ) — để trống nếu dùng của máy',type:'num'} ],
-    label:r=>r.code+(r.name?' — '+r.name:''), sub:r=>`${r.machine&&r.machine!=='*'?r.machine:'mọi máy'} · SL ${r.min?fmtNum(r.min):0}–${r.max?fmtNum(r.max):'∞'}${r.rate?' · '+fmtNum(r.rate)+' SP/giờ':''}` },
+    label:r=>r.code+(r.name?' — '+r.name:''),
+    sub:r=>`SL ${r.min?fmtNum(r.min):0}–${r.max?fmtNum(r.max):'∞'}${r.rate?' · '+fmtNum(r.rate)+' SP/giờ':''}`,
+    machineFilter:true, groupBy:'machine' },
   units: { title:'Đơn vị sản lượng', sheet:'DonVi', fields:[ {k:'name',l:'Đơn vị tính',req:1} ], label:r=>r.name, sub:()=>'' },
   presets:{ title:'Sản lượng gợi ý', sheet:'SanLuongGoiY', fields:[ {k:'value',l:'Giá trị sản lượng',type:'num',req:1} ], label:r=>fmtNum(r.value), sub:()=>'' },
   statuses:{ title:'Tình trạng lỗi', sheet:'TinhTrangLoi', fields:[ {k:'name',l:'Tình trạng',req:1} ], label:r=>r.name, sub:()=>'' },
@@ -794,27 +798,96 @@ $('#master-tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-mt]'); if(!b) return;
   state.masterTab = b.dataset.mt; $('#master-search').value=''; renderMasterTabs(); renderMasterList();
 });
+
+/* bộ lọc theo máy (dùng cho Mã lỗi, Nhân sự, Sản phẩm) */
+function setMasterMachine(code){
+  state.masterMachine = code || '';
+  const m = code ? machineByCode(code) : null;
+  const btn = $('#master-machine');
+  btn.textContent = m ? m.name : (code || 'Tất cả máy');
+  btn.classList.toggle('ph', !code);
+}
+$('#master-machine').addEventListener('click', ()=> openPicker({
+  title:'Lọc theo máy', value: state.masterMachine || '',
+  items: machines().map(m => {
+    const n = (state.master[state.masterTab]||[]).filter(r => r.machine === m.code).length;
+    return { value:m.code, label:m.name, code:m.code, sub: n ? n + ' mục' : 'chưa có mục nào' };
+  }),
+  onPick(v){ setMasterMachine(v); renderMasterList(); }
+}));
 $('#master-search').addEventListener('input', renderMasterList);
 
 function renderMasterList(){
   const key = state.masterTab, def = MASTER_DEFS[key];
   $('#master-title').textContent = def.title;
+  $('#master-filter').classList.toggle('hidden', !def.machineFilter);
+  if(def.machineFilter) setMasterMachine(state.masterMachine);
+
+  const all = (state.master[key]||[]);
   const q = noAccent($('#master-search').value);
-  let rows = (state.master[key]||[]).slice();
+  const mf = def.machineFilter ? state.masterMachine : '';
+  let rows = all.slice();
+  /* lọc theo máy: giữ cả mục dùng chung cho mọi máy (máy = * hoặc trống) */
+  if(mf) rows = rows.filter(r => r.machine === mf || r.machine === '*' || !r.machine);
   if(q) rows = rows.filter(r => noAccent(Object.values(r).join(' ')).includes(q));
-  if(def.groupBy) rows.sort((a,b) => String(a[def.groupBy]).localeCompare(String(b[def.groupBy])) || String(def.label(a)).localeCompare(String(def.label(b))));
-  $('#master-list').innerHTML = rows.length ? rows.map(r => `
-    <div class="item">
+
+  const cmp = (a,b) => String(a==null?'':a).localeCompare(String(b==null?'':b), 'vi', { numeric:true });
+  const gval = r => def.groupBy ? String(r[def.groupBy]||'') : '';
+  rows.sort((a,b) => (def.groupBy ? cmp(gval(a), gval(b)) : 0)
+    || cmp(def.sortBy ? a[def.sortBy] : def.label(a), def.sortBy ? b[def.sortBy] : def.label(b)));
+
+  /* dòng đếm + gợi ý bối cảnh */
+  const total = mf ? all.filter(r => r.machine === mf).length : all.length;
+  $('#master-count').innerHTML = mf
+    ? `Đang xem <b>${esc((machineByCode(mf)||{}).name || mf)}</b> — ${total} mục riêng của máy này
+       · <a href="#" data-clear-mf>xem tất cả máy</a>`
+    : (def.machineFilter ? `Tất cả ${all.length} mục của ${machines().length} máy — chọn máy ở trên để xem riêng` : '');
+
+  if(!rows.length){
+    $('#master-list').innerHTML = `<div class="empty">${q ? 'Không tìm thấy mục nào.'
+      : mf ? 'Máy này chưa có mục nào. Bấm “+ Thêm” để tạo cho máy đang chọn.'
+           : 'Chưa có dữ liệu. Bấm “+ Thêm” để tạo mới.'}</div>`;
+    return;
+  }
+
+  /* gom nhóm theo máy khi đang xem tất cả máy */
+  const groupByMachine = def.groupBy === 'machine' && !mf;
+  const showGroups = def.groupBy && !(def.groupBy === 'machine' && mf);
+  let html = '', last = null;
+  rows.forEach(r => {
+    const g = gval(r);
+    if(showGroups && g !== last){
+      last = g;
+      const n = rows.filter(x => gval(x) === g).length;
+      const title = groupByMachine
+        ? ((machineByCode(g)||{}).name || (g === '*' || !g ? 'Dùng cho tất cả máy' : g))
+        : (g || '—');
+      html += `<div class="m-group"><b>${esc(title)}</b>
+        <span>${groupByMachine && g && g!=='*' ? esc(g) + ' · ' : ''}${n} mục</span></div>`;
+    }
+    const code = def.code ? def.code(r) : '';
+    const sub = def.sub(r);
+    html += `<div class="item">
       <div class="item-head">
         <div><div class="item-title">${esc(def.label(r))} ${r.active===false?'<span class="badge badge-warn">tắt</span>':''}</div>
-          <div class="item-sub">${esc(def.sub(r))}</div></div>
+          ${sub?`<div class="item-sub">${esc(sub)}</div>`:''}</div>
         <div class="item-actions">
+          ${code?`<span class="p-code">${esc(code)}</span>`:''}
           <button class="mini" data-edit="${esc(r.id)}">Sửa</button>
           <button class="mini danger" data-del="${esc(r.id)}">Xóa</button>
-        </div></div></div>`).join('')
-    : `<div class="empty">Chưa có dữ liệu. Bấm “+ Thêm” để tạo mới.</div>`;
+        </div></div></div>`;
+  });
+  $('#master-list').innerHTML = html;
 }
-$('#master-add').addEventListener('click', ()=> masterForm(null));
+$('#master-count').addEventListener('click', e => {
+  if(!e.target.closest('[data-clear-mf]')) return;
+  e.preventDefault(); setMasterMachine(''); renderMasterList();
+});
+$('#master-add').addEventListener('click', ()=> {
+  const def = MASTER_DEFS[state.masterTab];
+  /* đang lọc theo máy nào thì thêm mục mới cho đúng máy đó */
+  masterForm(def.machineFilter && state.masterMachine ? { machine: state.masterMachine } : null);
+});
 $('#master-list').addEventListener('click', e => {
   const ed = e.target.closest('[data-edit]'), dl = e.target.closest('[data-del]');
   const rows = state.master[state.masterTab]||[];
@@ -851,7 +924,7 @@ function masterForm(row){
   }).join('') + `<label class="fld" style="display:flex;gap:8px;align-items:center">
       <input type="checkbox" data-mf="active" ${mfState.active!==false?'checked':''} style="width:auto"> <span style="margin:0">Đang sử dụng</span></label>`;
 
-  openModal((row?'Sửa ':'Thêm ')+def.title, body, async ()=>{
+  openModal(((row && row.id)?'Sửa ':'Thêm ')+def.title, body, async ()=>{
     const out = { id: mfState.id || '', active: mfState.active !== false };
     for(const f of def.fields){
       let v = mfState[f.k]==null?'':String(mfState[f.k]).trim();
