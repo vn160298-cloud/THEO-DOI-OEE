@@ -63,7 +63,12 @@ function toast(msg, kind=''){
 const busy = on => $('#loading').classList.toggle('hidden', !on);
 
 function openOverlay(id){ $(id).classList.remove('hidden'); document.body.style.overflow='hidden'; }
-function closeOverlay(id){ $(id).classList.add('hidden'); document.body.style.overflow=''; }
+function closeOverlay(id){
+  $(id).classList.add('hidden');
+  /* chỉ mở lại cuộn trang khi không còn lớp phủ nào (picker có thể mở từ trong modal) */
+  const open = ['#picker','#modal','#menu'].some(s => !$(s).classList.contains('hidden'));
+  if(!open) document.body.style.overflow = '';
+}
 
 /* ---- Picker: danh sách sổ xuống kèm tra cứu nhanh ---- */
 let pickerCtx = null;
@@ -833,9 +838,12 @@ function masterForm(row){
   mfState = Object.assign({ id:'', active:true }, row||{});
   const body = def.fields.map(f => {
     const v = mfState[f.k]==null?'':mfState[f.k];
-    if(f.type==='machine'||f.type==='shift'||f.type==='role')
+    if(f.type==='machine'||f.type==='shift'||f.type==='role'){
+      /* trường Máy lưu mã máy nhưng hiển thị tên máy cho dễ đọc */
+      const disp = (f.type==='machine' && v) ? ((machineByCode(v)||{}).name || v) : v;
       return `<div class="fld"><span>${f.l}${f.req?' <b class="req">*</b>':''}</span>
-        <button type="button" class="picker ${v?'':'ph'}" data-mf="${f.k}" data-t="${f.type}">${esc(v||(f.type==='machine'?'Tất cả máy':f.type==='shift'?'Tất cả ca':'Chọn vai trò'))}</button></div>`;
+        <button type="button" class="picker ${v?'':'ph'}" data-mf="${f.k}" data-t="${f.type}">${esc(disp||(f.type==='machine'?'Tất cả máy':f.type==='shift'?'Tất cả ca':'Chọn vai trò'))}</button></div>`;
+    }
     const it = f.type==='time' ? 'time' : 'text';
     const im = f.type==='num' ? ' inputmode="numeric"' : '';
     return `<label class="fld"><span>${f.l}${f.req?' <b class="req">*</b>':''}</span>
@@ -871,10 +879,13 @@ function masterForm(row){
     const items = t==='machine' ? machines().map(m=>({value:m.code,label:m.name,code:m.code}))
       : t==='shift' ? shifts().map(s=>({value:s.name,label:s.name}))
       : Object.values(ROLE).map(r=>({value:r,label:r}));
-    openPicker({ title:'Chọn', value:mfState[k]||'', items, onPick(v){
-      mfState[k] = v; el.textContent = v || (t==='machine'?'Tất cả máy':t==='shift'?'Tất cả ca':'Chọn vai trò');
-      el.classList.toggle('ph', !v);
-    }});
+    const ph = t==='machine' ? 'Tất cả máy' : t==='shift' ? 'Tất cả ca' : 'Chọn vai trò';
+    openPicker({ title: t==='machine'?'Chọn máy':t==='shift'?'Chọn ca':'Chọn vai trò',
+      value:mfState[k]||'', items, onPick(v, item){
+        mfState[k] = v;
+        el.textContent = v ? (item ? item.label : v) : ph;
+        el.classList.toggle('ph', !v);
+      }});
   };
 }
 
