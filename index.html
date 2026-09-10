@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0f2b46">
+<title>Theo dõi OEE</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Theo dõi OEE">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ MÀN HÌNH CẤU HÌNH LẦN ĐẦU ============ -->
+<section id="screen-setup" class="screen center hidden">
+  <div class="card auth-card">
+    <div class="brand"><div class="brand-logo">OEE</div>
+      <div><h1>Thiết lập kết nối</h1><p class="muted">Dán đường dẫn Web App (Google Apps Script)</p></div>
+    </div>
+    <label class="fld"><span>Đường dẫn API</span>
+      <input id="setup-url" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/.../exec">
+    </label>
+    <p id="setup-msg" class="msg"></p>
+    <button id="setup-save" class="btn btn-primary btn-block">Kiểm tra &amp; Lưu</button>
+    <p class="muted small">Xem hướng dẫn lấy đường dẫn này trong file <b>HƯỚNG DẪN.md</b>.</p>
+  </div>
+</section>
+
+<!-- ============ MÀN HÌNH ĐĂNG NHẬP ============ -->
+<section id="screen-login" class="screen center hidden">
+  <div class="card auth-card">
+    <div class="brand"><div class="brand-logo">OEE</div>
+      <div><h1>Ghi nhận vận hành</h1><p class="muted">Đăng nhập để tiếp tục</p></div>
+    </div>
+    <form id="login-form" autocomplete="on">
+      <label class="fld"><span>Tên đăng nhập</span>
+        <input id="login-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </label>
+      <label class="fld"><span>Mật khẩu</span>
+        <input id="login-pass" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-msg" class="msg"></p>
+      <button id="login-btn" class="btn btn-primary btn-block" type="submit">Đăng nhập</button>
+    </form>
+    <button id="login-reconfig" class="btn btn-link btn-block">Đổi đường dẫn API</button>
+  </div>
+</section>
+
+<!-- ============ ỨNG DỤNG ============ -->
+<div id="app" class="hidden">
+
+  <header class="appbar">
+    <div class="appbar-l">
+      <div class="brand-logo sm">OEE</div>
+      <div class="appbar-title">
+        <strong id="view-title">Nhập phiếu</strong>
+        <small id="user-line"></small>
+      </div>
+    </div>
+    <div class="appbar-r">
+      <button id="sync-chip" class="chip" title="Trạng thái đồng bộ">•</button>
+      <button id="btn-menu" class="icon-btn" aria-label="Menu">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ---------- VIEW: NHẬP PHIẾU ---------- -->
+    <section id="view-entry" class="view">
+      <div class="sheet-title">
+        <h2>PHIẾU GHI NHẬN VẬN HÀNH THIẾT BỊ HẰNG NGÀY</h2>
+        <span id="draft-flag" class="badge badge-draft hidden">Đang lưu nháp</span>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>1. Thông tin chung</h3></div>
+        <div class="form-grid">
+          <div class="fld"><span>Tên máy <b class="req">*</b></span><button type="button" class="picker" id="f-machine" data-ph="Chọn máy">Chọn máy</button></div>
+          <div class="fld"><span>Mã máy</span><input id="f-machine-code" readonly placeholder="—"></div>
+          <div class="fld"><span>Ngày <b class="req">*</b></span><input id="f-date" type="date"></div>
+          <div class="fld"><span>Ca <b class="req">*</b></span><button type="button" class="picker" id="f-shift" data-ph="Chọn ca">Chọn ca</button></div>
+          <div class="fld"><span>Người vận hành <b class="req">*</b></span><button type="button" class="picker" id="f-operator" data-ph="Chọn người vận hành">Chọn người vận hành</button></div>
+          <div class="fld"><span>Tổ trưởng</span><button type="button" class="picker" id="f-leader" data-ph="Chọn tổ trưởng">Chọn tổ trưởng</button></div>
+          <div class="fld"><span>Kỹ thuật</span><button type="button" class="picker" id="f-tech" data-ph="Chọn kỹ thuật">Chọn kỹ thuật</button></div>
+          <div class="fld"><span>Mã sản phẩm</span><button type="button" class="picker" id="f-product" data-ph="Chọn mã sản phẩm">Chọn mã sản phẩm</button></div>
+          <div class="fld"><span>Tổng sản lượng <b class="req">*</b></span>
+            <div class="inline">
+              <input id="f-qty" inputmode="numeric" placeholder="0" class="num">
+              <button type="button" class="btn btn-ghost btn-sm" id="f-qty-pick" title="Chọn nhanh">▾</button>
+            </div>
+            <small id="f-qty-hint" class="hint"></small>
+          </div>
+          <div class="fld"><span>Đơn vị tính</span><button type="button" class="picker" id="f-unit" data-ph="Chọn đơn vị">Chọn đơn vị</button></div>
+          <div class="fld"><span>Sản lượng lỗi</span><input id="f-defect" inputmode="numeric" placeholder="0" class="num"></div>
+          <div class="fld"><span>Giờ bắt đầu <b class="req">*</b></span><input id="f-start" type="time"></div>
+          <div class="fld"><span>Giờ kết thúc <b class="req">*</b></span><input id="f-end" type="time"></div>
+          <div class="fld full"><span>Ghi chú phiếu</span><textarea id="f-note" rows="2" placeholder="Ghi chú chung cho phiếu này…"></textarea></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>2. Nhật ký các lần dừng máy</h3>
+          <button id="btn-lookup-err" class="btn btn-ghost btn-sm">Tra mã lỗi</button>
+        </div>
+        <div id="dt-list"></div>
+        <button id="btn-add-dt" class="btn btn-dashed btn-block">+ Thêm lần dừng máy</button>
+        <div class="dt-total">Tổng thời gian dừng: <b id="dt-total">0</b> phút</div>
+      </div>
+
+      <div class="card oee-preview">
+        <div class="card-head"><h3>Chỉ số phiếu này</h3></div>
+        <div id="entry-oee" class="kpi-row"></div>
+      </div>
+
+      <div class="notice">
+        <b>Chú ý:</b>
+        <div>• Bắt buộc ghi khi: máy dừng từ 5 phút trở lên, máy không tạo ra sản phẩm, máy dừng do sự cố hoặc chờ xử lý.</div>
+        <div>• Không cần ghi khi: dừng thao tác ngắn dưới 5 phút, điều chỉnh nhỏ không ảnh hưởng sản xuất.</div>
+      </div>
+
+      <div class="actions-sticky">
+        <button id="btn-clear" class="btn btn-ghost">Xóa nháp</button>
+        <button id="btn-save" class="btn btn-primary flex1">Lưu phiếu</button>
+      </div>
+    </section>
+
+    <!-- ---------- VIEW: PHIẾU TRONG NGÀY ---------- -->
+    <section id="view-today" class="view hidden">
+      <div class="card">
+        <div class="row-between">
+          <label class="fld nomargin"><span>Xem ngày</span><input id="today-date" type="date"></label>
+          <button id="today-reload" class="btn btn-ghost btn-sm">Tải lại</button>
+        </div>
+      </div>
+      <div id="today-kpi" class="kpi-row"></div>
+      <div class="card">
+        <div class="card-head"><h3>Trạng thái lỗi theo máy</h3></div>
+        <div id="today-status"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Phiếu đã ghi nhận</h3></div>
+        <div id="today-list"></div>
+      </div>
+    </section>
+
+    <!-- ---------- VIEW: TỔNG QUAN ---------- -->
+    <section id="view-report" class="view hidden">
+      <div class="card">
+        <div class="chips" id="range-presets">
+          <button class="chip-btn" data-range="today">Hôm nay</button>
+          <button class="chip-btn" data-range="7">7 ngày</button>
+          <button class="chip-btn" data-range="30">30 ngày</button>
+          <button class="chip-btn" data-range="month">Tháng này</button>
+          <button class="chip-btn" data-range="lastmonth">Tháng trước</button>
+          <button class="chip-btn" data-range="year">Năm nay</button>
+        </div>
+        <div class="row2">
+          <label class="fld"><span>Từ ngày</span><input id="rp-from" type="date"></label>
+          <label class="fld"><span>Đến ngày</span><input id="rp-to" type="date"></label>
+        </div>
+        <div class="row2">
+          <div class="fld"><span>Máy</span><button type="button" class="picker" id="rp-machine" data-ph="Tất cả máy">Tất cả máy</button></div>
+          <div class="fld"><span>Ca</span><button type="button" class="picker" id="rp-shift" data-ph="Tất cả ca">Tất cả ca</button></div>
+        </div>
+        <button id="rp-run" class="btn btn-primary btn-block">Xem báo cáo</button>
+      </div>
+      <div id="rp-kpi" class="kpi-row"></div>
+      <div class="card">
+        <div class="card-head"><h3>OEE theo máy</h3></div>
+        <div id="rp-machines"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Top nguyên nhân dừng máy</h3></div>
+        <div id="rp-pareto"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>OEE theo ngày</h3></div>
+        <div id="rp-trend"></div>
+      </div>
+    </section>
+
+    <!-- ---------- VIEW: DỮ LIỆU NỀN ---------- -->
+    <section id="view-master" class="view hidden">
+      <div class="chips" id="master-tabs"></div>
+      <div class="card">
+        <div class="card-head">
+          <h3 id="master-title">Danh mục</h3>
+          <button id="master-add" class="btn btn-primary btn-sm">+ Thêm</button>
+        </div>
+        <input id="master-search" class="search" placeholder="Tìm trong danh mục…">
+        <div id="master-list"></div>
+      </div>
+    </section>
+
+    <!-- ---------- VIEW: NGƯỜI DÙNG ---------- -->
+    <section id="view-users" class="view hidden">
+      <div class="card">
+        <div class="card-head"><h3>Tài khoản người dùng</h3>
+          <button id="user-add" class="btn btn-primary btn-sm">+ Thêm</button></div>
+        <div id="users-list"></div>
+      </div>
+      <div class="notice">
+        <b>Cấp độ:</b>
+        <div>• Cấp 1 — chỉ nhập liệu.</div>
+        <div>• Cấp 2 — nhập liệu + xem dashboard, tổng quan.</div>
+        <div>• Cấp 3 — nhập liệu + xem + sửa/thêm/bớt dữ liệu nền.</div>
+        <div>• Quản trị — toàn quyền, chỉ Quản trị được tạo tài khoản.</div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav id="tabbar" class="tabbar"></nav>
+</div>
+
+<!-- ============ PICKER (bảng tra cứu nhanh) ============ -->
+<div id="picker" class="overlay hidden">
+  <div class="picker-panel">
+    <div class="picker-head">
+      <strong id="picker-title">Chọn</strong>
+      <button id="picker-close" class="icon-btn" aria-label="Đóng">✕</button>
+    </div>
+    <input id="picker-search" class="search" placeholder="Tìm nhanh…" autocomplete="off">
+    <div id="picker-list" class="picker-list"></div>
+  </div>
+</div>
+
+<!-- ============ MODAL (form thêm/sửa) ============ -->
+<div id="modal" class="overlay hidden">
+  <div class="modal-panel">
+    <div class="picker-head"><strong id="modal-title">Biểu mẫu</strong>
+      <button id="modal-close" class="icon-btn" aria-label="Đóng">✕</button></div>
+    <div id="modal-body" class="modal-body"></div>
+    <div class="modal-foot">
+      <button id="modal-cancel" class="btn btn-ghost">Hủy</button>
+      <button id="modal-ok" class="btn btn-primary flex1">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MENU ============ -->
+<div id="menu" class="overlay hidden">
+  <div class="menu-panel">
+    <div class="menu-user"><b id="menu-name"></b><small id="menu-level"></small></div>
+    <button class="menu-item" data-act="sync">Đồng bộ dữ liệu nền</button>
+    <button class="menu-item" data-act="push">Gửi phiếu đang chờ (<span id="menu-outbox">0</span>)</button>
+    <button class="menu-item" data-act="pass">Đổi mật khẩu</button>
+    <button class="menu-item" data-act="install">Cài lên màn hình chính</button>
+    <button class="menu-item" data-act="about">Phiên bản &amp; cập nhật</button>
+    <button class="menu-item danger" data-act="logout">Đăng xuất</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<div id="loading" class="loading hidden"><div class="spinner"></div></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
